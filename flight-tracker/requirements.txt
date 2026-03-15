@@ -1,0 +1,5 @@
+flask>=3.0.0
+fast-flights>=0.2.5
+apscheduler>=3.10.4
+gunicorn>=21.2.0
+pytz>=2024.1
