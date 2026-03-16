@@ -210,12 +210,13 @@ def api_next_search():
     return jsonify({'next_run': None})
 
 
-# ── Startup ───────────────────────────────────────────────────────────────────
+# ── Startup — runs under both `python app.py` and gunicorn ───────────────────
+
+init_db()
+_settings = get_settings()
+scheduler.start()
+reschedule_job(_settings.get('search_time', '07:00'))
 
 if __name__ == '__main__':
-    init_db()
-    settings = get_settings()
-    scheduler.start()
-    reschedule_job(settings.get('search_time', '07:00'))
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
