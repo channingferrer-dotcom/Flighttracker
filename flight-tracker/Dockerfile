@@ -11,4 +11,5 @@ COPY . .
 
 EXPOSE 8080
 
-CMD ["gunicorn", "app:app", "--workers", "1", "--threads", "2", "--timeout", "120", "--bind", "0.0.0.0:8080"]
+# Use shell form so $PORT is expanded at runtime by Railway
+CMD gunicorn app:app --workers 1 --threads 2 --timeout 120 --bind 0.0.0.0:${PORT:-8080}
