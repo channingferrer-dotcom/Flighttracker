@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flight Price Tracker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --purple:  #7c3aed;
+      --purple-l:#ede9fe;
+      --green:   #16a34a;
+      --green-l: #f0fdf4;
+      --red:     #dc2626;
+      --red-l:   #fef2f2;
+      --orange:  #ea580c;
+      --orange-l:#fff7ed;
+      --yellow:  #ca8a04;
+      --yellow-l:#fefce8;
+      --blue:    #2563eb;
+      --blue-l:  #eff6ff;
+      --grey:    #6b7280;
+      --border:  #e5e7eb;
+      --bg:      #f8fafc;
+      --card:    #ffffff;
+      --text:    #111827;
+      --text-m:  #374151;
+      --text-s:  #6b7280;
+      --radius:  12px;
+      --shadow:  0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+      --shadow-md:0 4px 6px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.06);
+    }
+
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: #fff; padding: 0 24px;
+    }
+    .header-inner { max-width: 1100px; margin: 0 auto; padding: 20px 0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .header h1 { font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .next-run { font-size: 12px; opacity: .8; }
+
+    /* ── Layout ── */
+    .main { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+    /* ── Buttons ── */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: opacity .15s, transform .1s; }
+    .btn:hover { opacity: .88; }
+    .btn:active { transform: scale(.97); }
+    .btn-primary   { background: #fff; color: var(--purple); }
+    .btn-secondary { background: rgba(255,255,255,.18); color: #fff; border: 1px solid rgba(255,255,255,.35); }
+    .btn-danger    { background: var(--red-l); color: var(--red); }
+    .btn-ghost     { background: var(--bg); color: var(--text-m); border: 1px solid var(--border); }
+    .btn-sm        { padding: 6px 12px; font-size: 12px; }
+    .btn:disabled  { opacity: .5; cursor: not-allowed; }
+
+    /* ── Cards ── */
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .card-body { padding: 20px; }
+
+    /* ── Route grid ── */
+    .routes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; margin-bottom: 28px; }
+
+    .route-card { border-radius: var(--radius); border: 1px solid var(--border); background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
+    .route-card-header { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+    .route-name { font-size: 15px; font-weight: 700; color: var(--text); }
+    .route-meta { font-size: 11px; color: var(--text-s); margin-top: 2px; }
+    .route-card-body { padding: 14px 16px; }
+
+    /* Price display */
+    .price-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+    .price-main { font-size: 32px; font-weight: 800; color: var(--text); line-height: 1; }
+    .price-change { font-size: 13px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+    .price-change.down { background: var(--green-l); color: var(--green); }
+    .price-change.up   { background: var(--red-l);   color: var(--red);   }
+    .price-change.same { background: var(--bg);       color: var(--grey);  }
+
+    .price-stats { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+    .price-stat { font-size: 11px; color: var(--text-s); }
+    .price-stat span { font-weight: 600; color: var(--text-m); }
+
+    /* Recommendation badge */
+    .rec-badge { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-bottom: 10px; }
+    .rec-badge.green  { background: var(--green-l);  color: var(--green); }
+    .rec-badge.red    { background: var(--red-l);    color: var(--red); }
+    .rec-badge.orange { background: var(--orange-l); color: var(--orange); }
+    .rec-badge.yellow { background: var(--yellow-l); color: var(--yellow); }
+    .rec-badge.blue   { background: var(--blue-l);   color: var(--blue); }
+
+    .rec-reason { font-size: 12px; color: var(--text-m); line-height: 1.5; margin-bottom: 12px; }
+
+    /* Chart */
+    .chart-wrap { position: relative; height: 110px; margin-bottom: 12px; }
+
+    /* Card footer */
+    .route-card-footer { padding: 10px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: center; justify-content: space-between; background: var(--bg); }
+
+    /* ── Empty state ── */
+    .empty { text-align: center; padding: 64px 24px; color: var(--text-s); }
+    .empty .emoji { font-size: 48px; display: block; margin-bottom: 12px; }
+    .empty p { font-size: 15px; }
+
+    /* ── Modal ── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--card); border-radius: 16px; width: 100%; max-width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,.2); max-height: 90vh; overflow-y: auto; }
+    .modal-header { padding: 20px 24px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .modal-header h2 { font-size: 18px; font-weight: 700; }
+    .modal-body { padding: 20px 24px; }
+    .modal-footer { padding: 14px 24px 20px; display: flex; gap: 10px; justify-content: flex-end; border-top: 1px solid var(--border); }
+    .close-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--grey); padding: 2px 6px; border-radius: 6px; }
+    .close-btn:hover { background: var(--bg); }
+
+    /* ── Form elements ── */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-grid.full { grid-template-columns: 1fr; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group label { font-size: 12px; font-weight: 600; color: var(--text-m); text-transform: uppercase; letter-spacing: .04em; }
+    .form-control { border: 1.5px solid var(--border); border-radius: 8px; padding: 9px 12px; font-size: 14px; color: var(--text); background: var(--card); transition: border-color .15s; width: 100%; }
+    .form-control:focus { outline: none; border-color: var(--purple); box-shadow: 0 0 0 3px var(--purple-l); }
+    select.form-control { cursor: pointer; }
+    .hint { font-size: 11px; color: var(--grey); margin-top: 2px; }
+
+    .return-row { display: none; }
+    .return-row.visible { display: contents; }
+
+    /* ── Settings panel ── */
+    .settings-section { margin-bottom: 28px; }
+    .settings-section h3 { font-size: 13px; font-weight: 700; color: var(--text-s); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 14px; }
+
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .toggle-row:last-child { border-bottom: none; }
+    .toggle-label { font-size: 14px; font-weight: 500; }
+    .toggle-desc  { font-size: 12px; color: var(--text-s); margin-top: 2px; }
+    .toggle { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: #d1d5db; border-radius: 24px; cursor: pointer; transition: background .2s; }
+    .toggle-slider::before { content: ''; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+    .toggle input:checked + .toggle-slider { background: var(--purple); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+    /* ── Alerts feed ── */
+    .alert-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .alert-item:last-child { border-bottom: none; }
+    .alert-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+    .alert-dot.price_drop { background: var(--green); }
+    .alert-dot.good_time  { background: var(--blue); }
+    .alert-title { font-size: 13px; font-weight: 600; }
+    .alert-meta  { font-size: 11px; color: var(--grey); margin-top: 2px; }
+
+    /* ── Toast ── */
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #1f2937; color: #fff; padding: 12px 18px; border-radius: 10px; font-size: 13px; font-weight: 500; z-index: 2000; transform: translateY(80px); opacity: 0; transition: all .3s; pointer-events: none; max-width: 320px; }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.success { border-left: 4px solid var(--green); }
+    .toast.error   { border-left: 4px solid var(--red); }
+    .toast.info    { border-left: 4px solid var(--blue); }
+
+    /* ── Spinner ── */
+    .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+    .tab { padding: 10px 18px; font-size: 13px; font-weight: 600; cursor: pointer; border-bottom: 2px solid transparent; color: var(--grey); transition: all .15s; }
+    .tab.active { border-bottom-color: var(--purple); color: var(--purple); }
+
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      .form-grid { grid-template-columns: 1fr; }
+      .routes-grid { grid-template-columns: 1fr; }
+      .main { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header class="header">
+  <div class="header-inner">
+    <h1>✈️ Flight Price Tracker</h1>
+    <div class="header-actions">
+      <span class="next-run" id="next-run-label">Next search: loading…</span>
+      <button class="btn btn-secondary btn-sm" onclick="openSettings()">⚙️ Settings</button>
+      <button class="btn btn-secondary btn-sm" id="search-all-btn" onclick="searchAll()">🔍 Search All Now</button>
+      <button class="btn btn-primary" onclick="openAddModal()">+ Add Route</button>
+    </div>
+  </div>
+</header>
+
+<!-- ── MAIN ── -->
+<main class="main">
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('routes', this)">Routes</div>
+    <div class="tab" onclick="switchTab('alerts', this)">Recent Alerts</div>
+  </div>
+
+  <!-- Routes tab -->
+  <div class="tab-pane active" id="tab-routes">
+    <div class="routes-grid" id="routes-grid">
+      <div class="empty" id="empty-state">
+        <span class="emoji">✈️</span>
+        <p>No routes yet. Click <strong>"+ Add Route"</strong> to start tracking.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alerts tab -->
+  <div class="tab-pane" id="tab-alerts">
+    <div class="card">
+      <div class="card-header"><strong>Recent Alerts</strong></div>
+      <div class="card-body" id="alerts-list">
+        <p style="color:var(--grey);font-size:14px;">No alerts yet.</p>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- ── ADD ROUTE MODAL ── -->
+<div class="modal-overlay" id="add-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Add Flight Route</h2>
+      <button class="close-btn" onclick="closeModal('add-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid" style="margin-bottom:14px;">
+        <div class="form-group">
+          <label>Trip Type</label>
+          <select class="form-control" id="trip-type" onchange="onTripTypeChange()">
+            <option value="one-way">One-Way</option>
+            <option value="round-trip">Round Trip</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Cabin Class</label>
+          <select class="form-control" id="seat-class">
+            <option value="economy">Economy</option>
+            <option value="premium-economy">Premium Economy</option>
+            <option value="business">Business</option>
+            <option value="first">First</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>From (IATA code)</label>
+          <input class="form-control" id="origin" placeholder="e.g. JFK" maxlength="3" style="text-transform:uppercase;" />
+          <span class="hint">3-letter airport code</span>
+        </div>
+        <div class="form-group">
+          <label>To (IATA code)</label>
+          <input class="form-control" id="destination" placeholder="e.g. LAX" maxlength="3" style="text-transform:uppercase;" />
+        </div>
+        <div class="form-group">
+          <label>Departure Date</label>
+          <input class="form-control" id="departure-date" type="date" />
+        </div>
+        <div class="form-group return-row" id="return-row">
+          <label>Return Date</label>
+          <input class="form-control" id="return-date" type="date" />
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label>Route Name (optional)</label>
+          <input class="form-control" id="route-name" placeholder="e.g. NYC to LA — Summer Trip" />
+        </div>
+        <div class="form-group">
+          <label>Adults</label>
+          <input class="form-control" id="adults" type="number" min="1" max="9" value="1" />
+        </div>
+        <div class="form-group">
+          <label>Alert on Drop ≥ (%)</label>
+          <input class="form-control" id="alert-threshold" type="number" min="1" max="50" value="5" />
+          <span class="hint">e.g. 5 = alert when price drops 5%+</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('add-modal')">Cancel</button>
+      <button class="btn btn-primary" style="background:var(--purple);color:#fff;" onclick="addRoute()">Add Route</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── SETTINGS MODAL ── -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>⚙️ Settings</h2>
+      <button class="close-btn" onclick="closeModal('settings-modal')">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="settings-section">
+        <h3>Email Notifications</h3>
+        <div class="form-grid full" style="margin-bottom:12px;">
+          <div class="form-group">
+            <label>Send Alerts To</label>
+            <input class="form-control" id="s-email" type="email" placeholder="you@example.com" />
+          </div>
+          <div class="form-group">
+            <label>Gmail Sender Address</label>
+            <input class="form-control" id="s-gmail" type="email" placeholder="yourapp@gmail.com" />
+            <span class="hint">The Gmail account that sends alerts</span>
+          </div>
+          <div class="form-group">
+            <label>Gmail App Password</label>
+            <input class="form-control" id="s-pass" type="password" placeholder="xxxx xxxx xxxx xxxx" />
+            <span class="hint">
+              <a href="https://myaccount.google.com/apppasswords" target="_blank"
+                 style="color:var(--purple);">Generate an App Password here</a>
+              (not your regular Gmail password)
+            </span>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <span id="email-status" style="font-size:12px;color:var(--grey);"></span>
+          <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="testEmail()">Send Test Email</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Alert Triggers</h3>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Price Drop Alerts</div>
+            <div class="toggle-desc">Email when price drops past your threshold</div>
+          </div>
+          <label class="toggle"><input type="checkbox" id="s-drop" /><span class="toggle-slider"></span></label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Good Time to Buy Alerts</div>
+            <div class="toggle-desc">Email when the app recommends booking</div>
+          </div>
+          <label class="toggle"><input type="checkbox" id="s-goodtime" /><span class="toggle-slider"></span></label>
+        </div>
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">Daily Digest Email</div>
+            <div class="toggle-desc">Morning summary of all tracked routes</div>
+          </div>
+          <label class="toggle"><input type="checkbox" id="s-digest" /><span class="toggle-slider"></span></label>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Search Schedule</h3>
+        <div class="form-group" style="max-width:200px;">
+          <label>Daily Search Time (ET)</label>
+          <input class="form-control" id="s-time" type="time" value="07:00" />
+          <span class="hint">Runs daily at this time Eastern Time</span>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('settings-modal')">Cancel</button>
+      <button class="btn btn-primary" style="background:var(--purple);color:#fff;" onclick="saveSettings()">Save Settings</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST ── -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let charts = {};
+
+// ── Utilities ────────────────────────────────────────────────────────────────
+function fmt(n) { return n == null ? '—' : '$' + Number(n).toLocaleString('en-US', {maximumFractionDigits: 0}); }
+function fmtPct(n) { if (n == null || n === 0) return ''; const sign = n > 0 ? '+' : ''; return `${sign}${n.toFixed(1)}%`; }
+function fmtDate(s) { if (!s) return ''; const d = new Date(s + 'T00:00:00'); return d.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}); }
+function timeSince(iso) {
+  if (!iso) return '';
+  const diff = (Date.now() - new Date(iso)) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}
+
+function toast(msg, type='info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast show ${type}`;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = 'toast', 3500);
+}
+
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'alerts') loadAlerts();
+}
+
+// ── Modal helpers ─────────────────────────────────────────────────────────────
+function openAddModal() {
+  document.getElementById('add-modal').classList.add('open');
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('departure-date').min = today;
+  document.getElementById('return-date').min = today;
+}
+function openSettings() {
+  loadSettings();
+  document.getElementById('settings-modal').classList.add('open');
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+});
+
+function onTripTypeChange() {
+  const rt = document.getElementById('return-row');
+  rt.classList.toggle('visible', document.getElementById('trip-type').value === 'round-trip');
+}
+
+// ── Load routes ───────────────────────────────────────────────────────────────
+async function loadRoutes() {
+  const res = await fetch('/api/routes');
+  const routes = await res.json();
+  renderRoutes(routes);
+}
+
+function renderRoutes(routes) {
+  const grid = document.getElementById('routes-grid');
+  const empty = document.getElementById('empty-state');
+
+  // Remove old cards (keep empty state node)
+  [...grid.querySelectorAll('.route-card')].forEach(c => c.remove());
+
+  if (!routes.length) { empty.style.display = ''; return; }
+  empty.style.display = 'none';
+
+  routes.forEach(route => grid.appendChild(buildCard(route)));
+}
+
+function buildCard(route) {
+  const s = route.summary || {};
+  const rec = route.recommendation || {};
+  const id = route.id;
+
+  const priceHtml = s.current
+    ? `<span class="price-main">${fmt(s.current)}</span>
+       ${s.change_1d !== undefined && s.data_points > 1
+         ? `<span class="price-change ${s.change_1d < 0 ? 'down' : s.change_1d > 0 ? 'up' : 'same'}">
+              ${s.change_1d < 0 ? '↓' : s.change_1d > 0 ? '↑' : ''}${fmt(Math.abs(s.change_1d))} today
+            </span>` : ''}`
+    : `<span style="color:var(--grey);font-size:14px;">No price data yet</span>`;
+
+  const statsHtml = s.current ? `
+    <div class="price-stats">
+      ${s.avg_7d ? `<div class="price-stat">7-day avg <span>${fmt(s.avg_7d)}</span></div>` : ''}
+      ${s.all_time_low ? `<div class="price-stat">Tracked low <span>${fmt(s.all_time_low)}</span></div>` : ''}
+      ${s.data_points ? `<div class="price-stat">Data points <span>${s.data_points}</span></div>` : ''}
+    </div>` : '';
+
+  const tripMeta = [
+    route.departure_date ? fmtDate(route.departure_date) : null,
+    route.return_date ? `Return ${fmtDate(route.return_date)}` : null,
+    (route.trip_type || 'one-way').replace('-', ' '),
+    route.seat_class || 'economy',
+    route.adults > 1 ? `${route.adults} adults` : null,
+  ].filter(Boolean).join(' · ');
+
+  const card = document.createElement('div');
+  card.className = 'route-card';
+  card.id = `card-${id}`;
+  card.innerHTML = `
+    <div class="route-card-header">
+      <div>
+        <div class="route-name">${route.name || route.origin + ' → ' + route.destination}</div>
+        <div class="route-meta">${tripMeta}</div>
+      </div>
+    </div>
+    <div class="route-card-body">
+      <div class="price-row">${priceHtml}</div>
+      ${statsHtml}
+      <div class="rec-badge ${rec.color || 'blue'}">${rec.headline || 'Monitoring'}</div>
+      <div class="rec-reason">${rec.reason || ''}</div>
+      <div class="chart-wrap"><canvas id="chart-${id}"></canvas></div>
+    </div>
+    <div class="route-card-footer">
+      <button class="btn btn-ghost btn-sm" id="search-btn-${id}" onclick="searchRoute(${id})">
+        🔍 Search Now
+      </button>
+      <button class="btn btn-danger btn-sm" onclick="deleteRoute(${id})">🗑</button>
+    </div>`;
+
+  // Draw chart after DOM insertion (next tick)
+  setTimeout(() => drawChart(id, []), 0);
+
+  // Load history asynchronously
+  fetch(`/api/routes/${id}/history`)
+    .then(r => r.json())
+    .then(h => drawChart(id, h));
+
+  return card;
+}
+
+function drawChart(routeId, history) {
+  const canvas = document.getElementById(`chart-${routeId}`);
+  if (!canvas) return;
+  if (charts[routeId]) { charts[routeId].destroy(); }
+
+  const labels = history.map(h => {
+    const d = new Date(h.searched_at);
+    return d.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+  });
+  const prices = history.map(h => h.price);
+
+  if (!prices.length) {
+    canvas.style.display = 'none';
+    return;
+  }
+
+  const min = Math.min(...prices);
+  const max = Math.max(...prices);
+  const pad = (max - min) * 0.15 || 10;
+
+  charts[routeId] = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data: prices,
+        borderColor: '#7c3aed',
+        backgroundColor: 'rgba(124,58,237,.08)',
+        tension: 0.4,
+        fill: true,
+        pointRadius: prices.length > 14 ? 0 : 3,
+        pointBackgroundColor: '#7c3aed',
+        borderWidth: 2,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: ctx => ' $' + ctx.parsed.y.toLocaleString() }
+      }},
+      scales: {
+        x: { display: false },
+        y: {
+          display: true,
+          min: min - pad,
+          max: max + pad,
+          ticks: {
+            maxTicksLimit: 3,
+            font: { size: 10 },
+            color: '#9ca3af',
+            callback: v => '$' + Math.round(v).toLocaleString(),
+          },
+          grid: { color: '#f3f4f6' },
+          border: { display: false },
+        },
+      },
+    },
+  });
+}
+
+// ── Add route ─────────────────────────────────────────────────────────────────
+async function addRoute() {
+  const origin = document.getElementById('origin').value.trim().toUpperCase();
+  const destination = document.getElementById('destination').value.trim().toUpperCase();
+  const depDate = document.getElementById('departure-date').value;
+  const tripType = document.getElementById('trip-type').value;
+  const returnDate = document.getElementById('return-date').value;
+  const name = document.getElementById('route-name').value.trim();
+  const seatClass = document.getElementById('seat-class').value;
+  const adults = parseInt(document.getElementById('adults').value) || 1;
+  const threshold = parseFloat(document.getElementById('alert-threshold').value) || 5;
+
+  if (!origin || origin.length !== 3) return toast('Enter a valid 3-letter origin code (e.g. JFK)', 'error');
+  if (!destination || destination.length !== 3) return toast('Enter a valid 3-letter destination code (e.g. LAX)', 'error');
+  if (!depDate) return toast('Please select a departure date', 'error');
+  if (tripType === 'round-trip' && !returnDate) return toast('Please select a return date for round trips', 'error');
+  if (tripType === 'round-trip' && returnDate <= depDate) return toast('Return date must be after departure date', 'error');
+
+  const payload = { origin, destination, departure_date: depDate, trip_type: tripType, seat_class: seatClass, adults, alert_threshold: threshold };
+  if (name) payload.name = name;
+  if (tripType === 'round-trip' && returnDate) payload.return_date = returnDate;
+
+  const res = await fetch('/api/routes', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  const data = await res.json();
+
+  if (!res.ok) return toast(data.error || 'Failed to add route', 'error');
+
+  closeModal('add-modal');
+  toast('Route added! Searching prices…', 'success');
+
+  // Clear form
+  ['origin','destination','departure-date','return-date','route-name'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('adults').value = 1;
+  document.getElementById('alert-threshold').value = 5;
+  document.getElementById('trip-type').value = 'one-way';
+  document.getElementById('return-row').classList.remove('visible');
+
+  await loadRoutes();
+  // Trigger immediate search for the new route
+  searchRoute(data.id);
+}
+
+// ── Search single route ───────────────────────────────────────────────────────
+async function searchRoute(routeId) {
+  const btn = document.getElementById(`search-btn-${routeId}`);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Searching…'; }
+
+  try {
+    const res = await fetch(`/api/routes/${routeId}/search`, { method: 'POST' });
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      toast('✅ Price updated!', 'success');
+      await loadRoutes();
+    } else {
+      toast(data.error || 'Search failed — try again shortly', 'error');
+      if (btn) { btn.disabled = false; btn.innerHTML = '🔍 Search Now'; }
+    }
+  } catch (e) {
+    toast('Network error — check your connection', 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '🔍 Search Now'; }
+  }
+}
+
+// ── Search all routes ─────────────────────────────────────────────────────────
+async function searchAll() {
+  const btn = document.getElementById('search-all-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin" style="border-color:rgba(255,255,255,.4);border-top-color:#fff;"></span> Searching…';
+  try {
+    await fetch('/api/search-all', { method: 'POST' });
+    toast('✅ All routes searched!', 'success');
+    await loadRoutes();
+  } catch (e) {
+    toast('Error running search', 'error');
+  }
+  btn.disabled = false;
+  btn.innerHTML = '🔍 Search All Now';
+}
+
+// ── Delete route ──────────────────────────────────────────────────────────────
+async function deleteRoute(routeId) {
+  if (!confirm('Remove this route and all its price history?')) return;
+  await fetch(`/api/routes/${routeId}`, { method: 'DELETE' });
+  toast('Route removed', 'info');
+  if (charts[routeId]) { charts[routeId].destroy(); delete charts[routeId]; }
+  await loadRoutes();
+}
+
+// ── Alerts ────────────────────────────────────────────────────────────────────
+async function loadAlerts() {
+  const res = await fetch('/api/alerts');
+  const alerts = await res.json();
+  const el = document.getElementById('alerts-list');
+
+  if (!alerts.length) { el.innerHTML = '<p style="color:var(--grey);font-size:14px;">No alerts yet. Alerts will appear here when prices drop or it\'s a good time to buy.</p>'; return; }
+
+  el.innerHTML = alerts.map(a => `
+    <div class="alert-item">
+      <div class="alert-dot ${a.alert_type}"></div>
+      <div>
+        <div class="alert-title">${a.route_name}</div>
+        <div class="alert-meta">${a.message}</div>
+        <div class="alert-meta" style="margin-top:2px;">${timeSince(a.sent_at)}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+async function loadSettings() {
+  const res = await fetch('/api/settings');
+  const s = await res.json();
+
+  document.getElementById('s-email').value = s.notification_email || '';
+  document.getElementById('s-gmail').value = s.gmail_sender || '';
+  document.getElementById('s-pass').value = '';  // never pre-fill password
+  document.getElementById('s-drop').checked = s.alert_on_price_drop === 'true';
+  document.getElementById('s-goodtime').checked = s.alert_on_good_time === 'true';
+  document.getElementById('s-digest').checked = s.daily_digest === 'true';
+  document.getElementById('s-time').value = s.search_time || '07:00';
+
+  const status = document.getElementById('email-status');
+  status.textContent = s.gmail_configured ? '✅ Gmail connected' : '⚠️ Gmail not configured';
+  status.style.color = s.gmail_configured ? 'var(--green)' : 'var(--orange)';
+}
+
+async function saveSettings() {
+  const pass = document.getElementById('s-pass').value.trim();
+  const payload = {
+    notification_email: document.getElementById('s-email').value.trim(),
+    gmail_sender: document.getElementById('s-gmail').value.trim(),
+    alert_on_price_drop: document.getElementById('s-drop').checked ? 'true' : 'false',
+    alert_on_good_time: document.getElementById('s-goodtime').checked ? 'true' : 'false',
+    daily_digest: document.getElementById('s-digest').checked ? 'true' : 'false',
+    search_time: document.getElementById('s-time').value,
+  };
+  if (pass) payload.gmail_app_password = pass;
+
+  const res = await fetch('/api/settings', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  if (res.ok) {
+    closeModal('settings-modal');
+    toast('✅ Settings saved', 'success');
+    loadNextRun();
+  } else {
+    toast('Failed to save settings', 'error');
+  }
+}
+
+async function testEmail() {
+  const btn = event.currentTarget;
+  btn.disabled = true; btn.textContent = 'Sending…';
+  const res = await fetch('/api/settings/test-email', { method: 'POST' });
+  const d = await res.json();
+  toast(d.message, d.success ? 'success' : 'error');
+  btn.disabled = false; btn.textContent = 'Send Test Email';
+}
+
+// ── Next run label ────────────────────────────────────────────────────────────
+async function loadNextRun() {
+  const res = await fetch('/api/next-search');
+  const d = await res.json();
+  const el = document.getElementById('next-run-label');
+  if (d.next_run) {
+    const dt = new Date(d.next_run);
+    el.textContent = 'Next search: ' + dt.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', timeZoneName:'short'}) + ' · ' + dt.toLocaleDateString('en-US', {month:'short', day:'numeric'});
+  } else {
+    el.textContent = 'Scheduler starting…';
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadRoutes();
+loadNextRun();
+setInterval(loadNextRun, 60000);
+</script>
+</body>
+</html>
